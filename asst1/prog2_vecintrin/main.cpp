@@ -249,7 +249,57 @@ void clampedExpVector(float* values, int* exponents, float* output, int N) {
   // Your solution should work for any value of
   // N and VECTOR_WIDTH, not just when VECTOR_WIDTH divides N
   //
-  
+  __cs149_vec_float x;
+  __cs149_vec_float result;
+  __cs149_vec_int exponent;
+  __cs149_vec_int count;
+
+  __cs149_vec_int zeroInt = _cs149_vset_int(0);
+  __cs149_vec_int oneInt = _cs149_vset_int(1);
+  __cs149_vec_float clampValue = _cs149_vset_float(9.999999f);
+
+  for (int i = 0; i < N ; i += VECTOR_WIDTH) { // the for-loop implements the lock-step behavior
+    int remaining = N - i;
+    int activeLanes = std::min(VECTOR_WIDTH, remaining);
+    
+    __cs149_mask maskValid = _cs149_init_ones(activeLanes);
+    __cs149_mask maskExponentPositive = _cs149_init_ones(0);
+    __cs149_mask maskLoop = _cs149_init_ones(0);
+    __cs149_mask maskClamp = _cs149_init_ones(0);
+
+    // load x and exponent
+    _cs149_vload_float(x, values + i, maskValid);
+    _cs149_vload_int(exponent, exponents + i, maskValid);
+
+    result = _cs149_vset_float(1.f);
+
+    count = _cs149_vset_int(0);
+    _cs149_vmove_int(count, exponent, maskValid);
+    
+    // find lands where exponent > 0
+    _cs149_vgt_int(maskExponentPositive, exponent, zeroInt, maskValid);
+    // for exponent > 0: result = x and count = exponent - 1
+    _cs149_vmove_float(result, x, maskExponentPositive);
+    _cs149_vsub_int(count, count, oneInt, maskExponentPositive);
+    
+    // determine which lanes need more multiplication
+    _cs149_vgt_int(maskLoop, count, zeroInt, maskExponentPositive);
+
+    while (_cs149_cntbits(maskLoop) > 0) {
+      _cs149_vmult_float(result, result, x, maskLoop);
+      _cs149_vsub_int(count, count, oneInt, maskLoop);
+
+      // recompute active lanes
+      _cs149_vgt_int(maskLoop, count, zeroInt, maskLoop);
+    }
+
+    // apply clamp
+    _cs149_vgt_float(maskClamp, result, clampValue, maskValid);
+    _cs149_vset_float(result, 9.999999f, maskClamp);
+    
+    // store result
+    _cs149_vstore_float(output + i, result, maskValid);
+  }
 }
 
 // returns the sum of all elements in values
@@ -270,11 +320,22 @@ float arraySumVector(float* values, int N) {
   //
   // CS149 STUDENTS TODO: Implement your vectorized version of arraySumSerial here
   //
+  __cs149_mask maskAll = _cs149_init_ones();
+  __cs149_vec_float x;
+  __cs149_vec_float sum = _cs149_vset_float(0.f);
   
-  for (int i=0; i<N; i+=VECTOR_WIDTH) {
-
+  // First reduce N values to VECTOR_WIDTH partial sums
+  for (int i = 0; i < N; i += VECTOR_WIDTH) {
+    _cs149_vload_float(x, values + i, maskAll);
+    _cs149_vadd_float(sum, sum, x, maskAll);
+  }
+  // Now reduce the VECTOR_WIDTH lanes to one value
+  __cs149_vec_float temp;
+  for (int width = VECTOR_WIDTH; width > 1; width /=2 ){
+    _cs149_hadd_float(temp, sum);
+    _cs149_interleave_float(sum, temp);
   }
 
-  return 0.0;
+  return sum.value[0];
 }
 
