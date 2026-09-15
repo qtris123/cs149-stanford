@@ -10,7 +10,7 @@ PPM_CXX=$(COMMONDIR)/ppm.cpp
 PPM_OBJ=$(addprefix $(OBJDIR)/, $(subst $(COMMONDIR)/,, $(PPM_CXX:.cpp=.o)))
 
 
-default: $(APP_NAME)
+default: $(APP_NAME) mandelbrot_turbo
 
 .PHONY: dirs clean
 
@@ -18,12 +18,16 @@ dirs:
 		/bin/mkdir -p $(OBJDIR)/
 
 clean:
-		/bin/rm -rf $(OBJDIR) *.ppm *~ $(APP_NAME)
+		/bin/rm -rf $(OBJDIR) *.ppm *~ $(APP_NAME) mandelbrot_turbo
 
 OBJS=$(OBJDIR)/main.o $(OBJDIR)/mandelbrotSerial.o $(OBJDIR)/mandelbrotThread.o $(PPM_OBJ)
+OBJS_TURBO=$(OBJDIR)/main.o $(OBJDIR)/mandelbrotSerial.o $(OBJDIR)/mandelbrotThread_turbo.o $(PPM_OBJ)
 
 $(APP_NAME): dirs $(OBJS)
 		$(CXX) $(CXXFLAGS) -o $@ $(OBJS) -lm -lpthread
+
+mandelbrot_turbo: dirs $(OBJS_TURBO)
+		$(CXX) $(CXXFLAGS) -o $@ $(OBJS_TURBO) -lm -lpthread
 
 $(OBJDIR)/%.o: %.cpp
 		$(CXX) $< $(CXXFLAGS) -c -o $@
